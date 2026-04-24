@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint
@@ -19,7 +19,7 @@ class Expense(Base):
     description: Mapped[str] = mapped_column(String(255), nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
 
 
@@ -34,7 +34,7 @@ class IdempotencyRecord(Base):
         String(36), ForeignKey("expenses.id"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
 
     expense: Mapped[Expense] = relationship("Expense")
