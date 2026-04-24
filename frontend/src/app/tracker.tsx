@@ -29,6 +29,7 @@ export default function ExpenseTracker({ initialExpenses, apiBaseUrl }: Props) {
   const [description, setDescription] = useState("");
   const [expenseDate, setExpenseDate] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
+  const [sortOrder, setSortOrder] = useState("date_desc");
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,11 +49,11 @@ export default function ExpenseTracker({ initialExpenses, apiBaseUrl }: Props) {
     [expenses]
   );
 
-  async function fetchExpenses(categoryValue: string) {
+  async function fetchExpenses(categoryValue: string, sortValue: string) {
     setIsLoading(true);
     setErrorMessage("");
 
-    const params = new URLSearchParams({ sort: "date_desc" });
+    const params = new URLSearchParams({ sort: sortValue });
     if (categoryValue) {
       params.set("category", categoryValue);
     }
@@ -115,7 +116,7 @@ export default function ExpenseTracker({ initialExpenses, apiBaseUrl }: Props) {
       setDescription("");
       setExpenseDate("");
       setPendingRetry(null);
-      await fetchExpenses(filterCategory);
+      await fetchExpenses(filterCategory, sortOrder);
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -136,7 +137,7 @@ export default function ExpenseTracker({ initialExpenses, apiBaseUrl }: Props) {
     try {
       await submitExpense(pendingRetry.payload, pendingRetry.key);
       setPendingRetry(null);
-      await fetchExpenses(filterCategory);
+      await fetchExpenses(filterCategory, sortOrder);
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Retry request failed."
@@ -148,7 +149,12 @@ export default function ExpenseTracker({ initialExpenses, apiBaseUrl }: Props) {
 
   async function handleFilterChange(value: string) {
     setFilterCategory(value);
-    await fetchExpenses(value);
+    await fetchExpenses(value, sortOrder);
+  }
+
+  async function handleSortChange(value: string) {
+    setSortOrder(value);
+    await fetchExpenses(filterCategory, value);
   }
 
   const hasExpenses = expenses.length > 0;
@@ -220,7 +226,12 @@ export default function ExpenseTracker({ initialExpenses, apiBaseUrl }: Props) {
               ))}
             </select>
           </label>
-          <p>Sorted by date: newest first</p>
+          <label>
+            Sort
+            <select value={sortOrder} onChange={(event) => void handleSortChange(event.target.value)}>
+              <option value="date_desc">Date (newest first)</option>
+            </select>
+          </label>
         </div>
 
         <p className="total">Total: ₹{totalAmount.toFixed(2)}</p>
