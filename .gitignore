@@ -5,6 +5,9 @@ out/
 
 backend/.venv/
 backend/__pycache__/
+backend/app/__pycache__/
+backend/app/routes/__pycache__/
+*.pyc
 backend/*.db
 backend/*.sqlite3
 
