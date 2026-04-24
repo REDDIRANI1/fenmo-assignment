@@ -2,7 +2,8 @@ import hashlib
 import json
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -20,6 +21,7 @@ def _request_hash(payload: ExpenseCreate) -> str:
 @router.post("", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
 def create_expense(
     payload: ExpenseCreate,
+    response: Response,
     db: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
@@ -45,6 +47,7 @@ def create_expense(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Stored idempotency record references missing expense.",
                 )
+            response.status_code = status.HTTP_200_OK
             return expense
 
     expense = Expense(**payload.model_dump())
@@ -58,7 +61,33 @@ def create_expense(
             )
         )
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # Retry-safe fallback when concurrent requests race on same idempotency key.
+        if not idempotency_key:
+            raise
+
+        existing = (
+            db.query(IdempotencyRecord)
+            .filter(IdempotencyRecord.key == idempotency_key)
+            .first()
+        )
+        if not existing or existing.request_hash != request_hash:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Idempotency key already used with a different payload.",
+            )
+        expense = db.query(Expense).filter(Expense.id == existing.expense_id).first()
+        if expense is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Stored idempotency record references missing expense.",
+            )
+        response.status_code = status.HTTP_200_OK
+        return expense
+
     db.refresh(expense)
     return expense
 
